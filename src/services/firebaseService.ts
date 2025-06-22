@@ -21,7 +21,14 @@ export interface Order {
   phone: string;
   address: string;
   quantity: number;
-  extraFields?: { [key: string]: any };
+  extraFields?: {
+    deliveryNote?: string;
+    jerseyDetails?: { 
+      name: string;
+      number: string;
+      size: string;
+    }[];
+  };
   addons?: { name: string; price: number }[];
   totalPrice: number;
   securityCharge: number;
@@ -32,7 +39,6 @@ export interface Order {
   createdAt: string;
 }
 
-// Initialize demo data if database is empty
 export const initializeDemoData = async () => {
   try {
     const snapshot = await get(ref(database, 'products'));
@@ -52,8 +58,6 @@ export const initializeDemoData = async () => {
           stock: 50,
           extraFields: {
             deliveryNote: '',
-            jerseyName: '',
-            jerseyNumber: ''
           },
           addons: [
             { name: 'সামনে নাম্বার প্রিন্ট', price: 100 }
@@ -159,11 +163,9 @@ export const deleteOrder = async (id: string): Promise<void> => {
   }
 };
 
-export const createProduct = async (product: Omit<Product, 'id'>): Promise<void> => {
+export const createProduct = async (product: Omit<Product, 'id'> & { id: string }): Promise<void> => {
   try {
-    const productRef = push(ref(database, 'products'));
-    const productId = productRef.key!;
-    await set(productRef, { ...product, id: productId });
+    await set(ref(database, `products/${product.id}`), product);
   } catch (error) {
     console.error('Error creating product:', error);
     throw error;

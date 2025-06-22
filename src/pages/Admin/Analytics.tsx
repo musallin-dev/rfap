@@ -7,7 +7,10 @@ import {
   ShoppingBag, 
   Users,
   Calendar,
-  BarChart3
+  BarChart3,
+  Award,
+  Medal,
+  Trophy
 } from 'lucide-react';
 import { getAllOrders, getAllProducts, Order, Product } from '../../services/firebaseService';
 
@@ -17,6 +20,7 @@ const AdminAnalytics: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('30'); // days
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('adminLoggedIn');
@@ -41,6 +45,12 @@ const AdminAnalytics: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setIsAnimating(true);
+    setDateRange(e.target.value);
+    setTimeout(() => setIsAnimating(false), 500);
   };
 
   const getFilteredOrders = () => {
@@ -68,6 +78,10 @@ const AdminAnalytics: React.FC = () => {
     
     // Daily sales data for the last 7 days
     const dailySales = [];
+    const maxRevenue = Math.max(...[1, ...filteredOrders
+      .filter(o => o.status === 'delivered')
+      .map(o => o.totalPrice)]);
+    
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -79,7 +93,8 @@ const AdminAnalytics: React.FC = () => {
       dailySales.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         revenue: dayRevenue,
-        orders: dayOrders.length
+        orders: dayOrders.length,
+        heightPercentage: Math.max(10, (dayRevenue / maxRevenue) * 100)
       });
     }
     
@@ -122,10 +137,15 @@ const AdminAnalytics: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-500 rounded-full animate-ping"></div>
+            </div>
+          </div>
+          <p className="text-gray-600 font-medium">Crunching analytics...</p>
         </div>
       </div>
     );
@@ -133,159 +153,217 @@ const AdminAnalytics: React.FC = () => {
 
   const analytics = getAnalytics();
 
+  // Medal icons for top 3 products
+  const getMedalIcon = (index: number) => {
+    if (index === 0) return <Trophy className="w-4 h-4 text-yellow-500" />;
+    if (index === 1) return <Award className="w-4 h-4 text-gray-400" />;
+    if (index === 2) return <Medal className="w-4 h-4 text-amber-700" />;
+    return <span className="text-xs font-bold ml-1">{index + 1}</span>;
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 sm:py-6 gap-4">
-            <div className="flex items-center space-x-2 sm:space-x-4">
-              <button
-                onClick={() => navigate('/admin/dashboard')}
-                className="flex items-center space-x-1 sm:space-x-2 text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm sm:text-base">Back to Dashboard</span>
-              </button>
-              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Analytics</h1>
-            </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Floating header */}
+      <header className="sticky top-0 z-10 bg-white shadow-md rounded-b-xl">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate('/admin/dashboard')}
+              className="flex items-center space-x-2 text-indigo-600 hover:text-indigo-800 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span className="font-medium">Dashboard</span>
+            </button>
             
-            <div className="flex items-center space-x-2 w-full sm:w-auto">
-              <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+            <h1 className="text-xl font-bold text-gray-900 flex-1 text-center">Analytics</h1>
+            
+            <div className="flex items-center space-x-2 bg-indigo-50 px-3 py-1.5 rounded-full">
+              <Calendar className="w-4 h-4 text-indigo-600" />
               <select
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base w-full sm:w-auto"
+                onChange={handleDateChange}
+                className="bg-transparent text-indigo-700 font-medium text-sm focus:outline-none appearance-none"
               >
-                <option value="7">Last 7 days</option>
-                <option value="30">Last 30 days</option>
-                <option value="90">Last 90 days</option>
-                <option value="365">Last year</option>
+                <option value="7">7D</option>
+                <option value="30">30D</option>
+                <option value="90">90D</option>
+                <option value="365">1Y</option>
               </select>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className={`max-w-7xl mx-auto px-4 py-6 transition-opacity duration-300 ${isAnimating ? 'opacity-50' : 'opacity-100'}`}>
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-4 rounded-2xl shadow-lg transform transition-transform hover:scale-[1.02]">
             <div className="flex items-center">
-              <div className="bg-green-100 p-2 rounded-full">
-                <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+              <div className="bg-white/20 p-2 rounded-full">
+                <DollarSign className="w-5 h-5" />
               </div>
-              <div className="ml-3 sm:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">৳{analytics.totalRevenue.toLocaleString()}</p>
+              <div className="ml-3">
+                <p className="text-xs font-medium opacity-80">Total Revenue</p>
+                <p className="text-lg font-bold">৳{analytics.totalRevenue.toLocaleString()}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+          <div className="bg-gradient-to-br from-blue-500 to-cyan-600 text-white p-4 rounded-2xl shadow-lg transform transition-transform hover:scale-[1.02]">
             <div className="flex items-center">
-              <div className="bg-blue-100 p-2 rounded-full">
-                <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              <div className="bg-white/20 p-2 rounded-full">
+                <ShoppingBag className="w-5 h-5" />
               </div>
-              <div className="ml-3 sm:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Orders</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{analytics.totalOrders}</p>
+              <div className="ml-3">
+                <p className="text-xs font-medium opacity-80">Total Orders</p>
+                <p className="text-lg font-bold">{analytics.totalOrders}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white p-4 rounded-2xl shadow-lg transform transition-transform hover:scale-[1.02]">
             <div className="flex items-center">
-              <div className="bg-purple-100 p-2 rounded-full">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+              <div className="bg-white/20 p-2 rounded-full">
+                <TrendingUp className="w-5 h-5" />
               </div>
-              <div className="ml-3 sm:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Conversion Rate</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">{analytics.conversionRate.toFixed(1)}%</p>
+              <div className="ml-3">
+                <p className="text-xs font-medium opacity-80">Conversion</p>
+                <p className="text-lg font-bold">{analytics.conversionRate.toFixed(1)}%</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 text-white p-4 rounded-2xl shadow-lg transform transition-transform hover:scale-[1.02]">
             <div className="flex items-center">
-              <div className="bg-orange-100 p-2 rounded-full">
-                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+              <div className="bg-white/20 p-2 rounded-full">
+                <BarChart3 className="w-5 h-5" />
               </div>
-              <div className="ml-3 sm:ml-4">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">Avg Order Value</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-900">৳{analytics.averageOrderValue.toFixed(0)}</p>
+              <div className="ml-3">
+                <p className="text-xs font-medium opacity-80">Avg. Order</p>
+                <p className="text-lg font-bold">৳{analytics.averageOrderValue.toFixed(0)}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-          {/* Daily Sales Chart */}
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Daily Sales (Last 7 Days)</h3>
-            <div className="space-y-3 sm:space-y-4">
-              {analytics.dailySales.map((day, index) => (
-                <div key={index} className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 xs:gap-0">
-                  <span className="text-xs sm:text-sm text-gray-600 w-16">{day.date}</span>
-                  <div className="flex flex-1 flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full">
-                    <span className="text-xs sm:text-sm font-medium min-w-[70px]">৳{day.revenue}</span>
-                    <div className="w-full sm:w-32 bg-gray-200 rounded-full h-2">
-                      <div
-                        className="bg-blue-600 h-2 rounded-full"
-                        style={{
-  width: `${Math.max((day.revenue / Math.max(...analytics.dailySales.map(d => d.revenue))) * 100, 5)}%`
-}}
+        {/* Daily Sales Chart */}
+        <div className="bg-white p-5 rounded-2xl shadow-sm mb-6 transform transition-transform hover:scale-[1.01]">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-gray-900">Daily Sales</h3>
+            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+              Last 7 days
+            </span>
+          </div>
+          
+          <div className="flex items-end justify-between h-40 gap-2">
+            {analytics.dailySales.map((day, index) => (
+              <div 
+                key={index} 
+                className="flex flex-col items-center flex-1"
+              >
+                <div className="relative flex flex-col items-center group">
+                  <div 
+                    className="w-full bg-gradient-to-t from-indigo-400 to-indigo-600 rounded-t-lg transition-all duration-500 ease-out"
+                    style={{ height: `${day.heightPercentage}%` }}
+                  >
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                      ৳{day.revenue} • {day.orders} orders
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-500 mt-2">{day.date}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Products */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm">
+            <h3 className="font-bold text-gray-900 mb-4">Top Products</h3>
+            <div className="space-y-3">
+              {analytics.topProducts.map((product, index) => (
+                <div 
+                  key={product.id} 
+                  className="flex items-center p-3 rounded-xl hover:bg-gray-50 transition-all duration-200"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 bg-indigo-100 text-indigo-600 rounded-full flex-shrink-0">
+                    {getMedalIcon(index)}
+                  </div>
+                  <div className="ml-3 flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                    <p className="text-xs text-gray-500">{product.quantity} sold</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-900">৳{product.revenue.toLocaleString()}</p>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                      <div 
+                        className="bg-indigo-600 h-1.5 rounded-full transition-all duration-700 ease-out"
+                        style={{ width: `${Math.min(100, (product.revenue / analytics.topProducts[0].revenue) * 100)}%` }}
                       ></div>
                     </div>
-                    <span className="text-xs text-gray-500 min-w-[70px]">{day.orders} orders</span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Top Products */}
-          <div className="bg-white p-4 sm:p-6 rounded-lg shadow">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Top Products</h3>
-            <div className="space-y-3 sm:space-y-4">
-              {analytics.topProducts.map((product, index) => (
-                <div key={product.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2 sm:space-x-3 truncate">
-                    <span className="flex items-center justify-center w-6 h-6 bg-blue-100 text-blue-600 rounded-full text-xs font-bold flex-shrink-0">
-                      {index + 1}
-                    </span>
-                    <span className="text-xs sm:text-sm font-medium text-gray-900 truncate">{product.name}</span>
-                  </div>
-                  <div className="text-right min-w-[90px]">
-                    <p className="text-xs sm:text-sm font-semibold text-gray-900">৳{product.revenue.toLocaleString()}</p>
-                    <p className="text-2xs sm:text-xs text-gray-500">{product.quantity} sold</p>
-                  </div>
+          {/* Order Status Breakdown */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm">
+            <h3 className="font-bold text-gray-900 mb-4">Order Status</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-gradient-to-br from-green-100 to-green-50 p-4 rounded-xl border border-green-100">
+                <div className="text-2xl font-bold text-green-800">{analytics.completedOrders}</div>
+                <div className="text-sm text-green-700 flex items-center mt-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                  Completed
                 </div>
-              ))}
+              </div>
+              
+              <div className="bg-gradient-to-br from-yellow-100 to-amber-50 p-4 rounded-xl border border-yellow-100">
+                <div className="text-2xl font-bold text-amber-800">{analytics.pendingOrders}</div>
+                <div className="text-sm text-amber-700 flex items-center mt-1">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full mr-2"></div>
+                  Pending
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-red-100 to-rose-50 p-4 rounded-xl border border-red-100">
+                <div className="text-2xl font-bold text-red-800">{analytics.cancelledOrders}</div>
+                <div className="text-sm text-red-700 flex items-center mt-1">
+                  <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
+                  Cancelled
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-blue-100 to-cyan-50 p-4 rounded-xl border border-blue-100">
+                <div className="text-2xl font-bold text-blue-800">{analytics.totalOrders}</div>
+                <div className="text-sm text-blue-700 flex items-center mt-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                  Total
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-
-        {/* Order Status Breakdown */}
-        <div className="mt-6 sm:mt-8 bg-white p-4 sm:p-6 rounded-lg shadow">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Order Status Breakdown</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="text-center p-2 sm:p-3 bg-green-50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold text-green-600">{analytics.completedOrders}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Completed</div>
-            </div>
-            <div className="text-center p-2 sm:p-3 bg-yellow-50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold text-yellow-600">{analytics.pendingOrders}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Pending</div>
-            </div>
-            <div className="text-center p-2 sm:p-3 bg-red-50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold text-red-600">{analytics.cancelledOrders}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Cancelled</div>
-            </div>
-            <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
-              <div className="text-lg sm:text-2xl font-bold text-blue-600">{analytics.totalOrders}</div>
-              <div className="text-xs sm:text-sm text-gray-600">Total</div>
+            
+            <div className="mt-4 relative pt-1">
+              <div className="flex mb-2 items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold inline-block text-gray-600">
+                    Completion Rate
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-semibold inline-block text-green-600">
+                    {analytics.conversionRate.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+              <div className="overflow-hidden h-2 mb-4 text-xs flex rounded-full bg-gray-200">
+                <div 
+                  style={{ width: `${analytics.conversionRate}%` }}
+                  className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-green-400 to-emerald-600 transition-all duration-1000 ease-out"
+                ></div>
+              </div>
             </div>
           </div>
         </div>

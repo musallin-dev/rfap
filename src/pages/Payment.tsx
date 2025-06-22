@@ -4,10 +4,28 @@ import { Upload, CreditCard } from 'lucide-react';
 import { uploadToImgBB } from '../services/imgbbService';
 import { createOrder } from '../services/firebaseService';
 
+interface JerseyDetails {
+  name: string;
+  number: string;
+  size: string;
+}
+
+interface OrderData {
+  name: string;
+  phone: string;
+  address: string;
+  quantity: number;
+  deliveryNote: string;
+  jerseyDetails: JerseyDetails[];
+  addons: { name: string; price: number }[];
+  productId: string;
+  totalPrice: number;
+}
+
 const Payment: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [orderData, setOrderData] = useState<any>(null);
+  const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [paymentData, setPaymentData] = useState({
     senderNumber: '',
     screenshot: null as File | null
@@ -25,7 +43,7 @@ const Payment: React.FC = () => {
   }, [navigate]);
 
   const securityCharge = orderData ? 150 * orderData.quantity : 150;
-  const deliveryCharge = 110; // Updated delivery charge
+  const deliveryCharge = 110;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -37,7 +55,7 @@ const Payment: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!paymentData.screenshot) {
+    if (!paymentData.screenshot || !orderData) {
       alert('পেমেন্ট স্ক্রিনশট আপলোড করুন');
       return;
     }
@@ -45,12 +63,10 @@ const Payment: React.FC = () => {
     setSubmitting(true);
 
     try {
-      // Upload screenshot to ImgBB
       setUploading(true);
       const screenshotUrl = await uploadToImgBB(paymentData.screenshot);
       setUploading(false);
 
-      // Create order
       const orderId = await createOrder({
         productId: orderData.productId,
         customerName: orderData.name,
@@ -59,10 +75,9 @@ const Payment: React.FC = () => {
         quantity: orderData.quantity,
         extraFields: {
           deliveryNote: orderData.deliveryNote,
-          jerseyName: orderData.jerseyName,
-          jerseyNumber: orderData.jerseyNumber
+          jerseyDetails: orderData.jerseyDetails
         },
-        addons: orderData.addons?.map((name: string) => ({ name, price: 0 })) || [],
+        addons: orderData.addons,
         totalPrice: orderData.totalPrice,
         securityCharge,
         paymentScreenshot: screenshotUrl,
@@ -70,10 +85,7 @@ const Payment: React.FC = () => {
         status: 'pending'
       });
 
-      // Clear order data from localStorage
       localStorage.removeItem('orderData');
-      
-      // Navigate to success page
       navigate(`/success/${orderId}`);
     } catch (error) {
       console.error('Error creating order:', error);
@@ -100,7 +112,6 @@ const Payment: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg p-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-6">অগ্রিম পেমেন্ট</h1>
           
-          {/* Payment Instructions */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
             <div className="flex items-start space-x-3">
               <CreditCard className="w-6 h-6 text-blue-600 mt-1" />
@@ -122,7 +133,6 @@ const Payment: React.FC = () => {
             </div>
           </div>
 
-          {/* Order Summary */}
           <div className="bg-gray-50 rounded-lg p-6 mb-8">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">অর্ডার সারসংক্ষেপ</h3>
             <div className="space-y-2">

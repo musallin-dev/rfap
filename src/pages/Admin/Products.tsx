@@ -9,8 +9,15 @@ import {
   Eye, 
   X,
   Upload,
-  Save
+  Save,
+  Image as ImageIcon,
+  XCircle,
+  Package,
+  DollarSign,
+  ChevronRight
 } from 'lucide-react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import { 
   getAllProducts, 
   createProduct, 
@@ -26,6 +33,7 @@ interface Addon {
 }
 
 interface FormData {
+  id: string;
   name: string;
   price: number;
   description: string;
@@ -46,8 +54,11 @@ const AdminProducts: React.FC = () => {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'view'>('create');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
+    id: '',
     name: '',
     price: 0,
     description: '',
@@ -58,6 +69,26 @@ const AdminProducts: React.FC = () => {
     addons: []
   });
 
+  // Rich text editor modules
+  const modules = {
+    toolbar: [
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ 'color': [] }, { 'background': [] }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'align': [] }],
+      ['link', 'image'],
+      ['clean']
+    ],
+  };
+
+  const formats = [
+    'header', 'bold', 'italic', 'underline', 'strike',
+    'color', 'background', 'list', 'bullet', 'indent',
+    'align', 'link', 'image'
+  ];
+
   useEffect(() => {
     const isLoggedIn = localStorage.getItem('adminLoggedIn');
     if (!isLoggedIn) {
@@ -66,10 +97,18 @@ const AdminProducts: React.FC = () => {
     }
 
     fetchProducts();
+    
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, [navigate]);
 
   const fetchProducts = async () => {
     try {
+      setLoading(true);
       const productsData = await getAllProducts();
       setProducts(productsData);
     } catch (error) {
@@ -81,6 +120,7 @@ const AdminProducts: React.FC = () => {
 
   const resetForm = () => {
     setFormData({
+      id: '',
       name: '',
       price: 0,
       description: '',
@@ -95,8 +135,15 @@ const AdminProducts: React.FC = () => {
     }
   };
 
+  const generateProductId = () => {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substr(2, 5);
+    return `p_${timestamp}_${random}`;
+  };
+
   const handleCreateProduct = () => {
     resetForm();
+    setFormData(prev => ({ ...prev, id: generateProductId() }));
     setModalMode('create');
     setSelectedProduct(null);
     setShowModal(true);
@@ -104,6 +151,7 @@ const AdminProducts: React.FC = () => {
 
   const handleEditProduct = (product: Product) => {
     setFormData({
+      id: product.id,
       name: product.name,
       price: product.price,
       description: product.description,
@@ -127,6 +175,11 @@ const AdminProducts: React.FC = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (formData.images.length >= 4) {
+      alert('Maximum 4 images allowed');
+      return;
+    }
 
     try {
       setUploading(true);
@@ -179,14 +232,36 @@ const AdminProducts: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.id.trim()) {
+      alert('Product ID is required');
+      return;
+    }
+
+    if (formData.images.length === 0) {
+      alert('At least one image is required');
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
+      
+      // Check if product ID already exists (for create mode)
+      if (modalMode === 'create') {
+        const existingProduct = products.find(p => p.id === formData.id);
+        if (existingProduct) {
+          alert('Product ID already exists. Please use a different ID.');
+          return;
+        }
+      }
+
       if (modalMode === 'create') {
         await createProduct({
           ...formData,
           extraFields: {
             deliveryNote: '',
             jerseyName: '',
-            jerseyNumber: ''
+            jerseyNumber: '',
+            jerseySize: ''
           }
         });
       } else if (modalMode === 'edit' && selectedProduct) {
@@ -199,6 +274,8 @@ const AdminProducts: React.FC = () => {
     } catch (error) {
       console.error('Error saving product:', error);
       alert('Failed to save product');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -216,79 +293,94 @@ const AdminProducts: React.FC = () => {
 
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category.toLowerCase().includes(searchTerm.toLowerCase())
+    product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-gray-50 to-gray-100">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 bg-blue-500 rounded-full animate-ping"></div>
+            </div>
+          </div>
+          <p className="text-gray-600 font-medium">Loading products...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-6 gap-4">
-            <div className="flex items-center space-x-4">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+      {/* Floating Header */}
+      <header className={`sticky top-0 z-20 bg-white shadow-md transition-all duration-300 ${isScrolled ? 'py-3' : 'py-5'} rounded-b-2xl`}>
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
               <button
                 onClick={() => navigate('/admin/dashboard')}
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+                className="flex items-center space-x-1 text-indigo-600 hover:text-indigo-800"
               >
                 <ArrowLeft className="w-5 h-5" />
-                <span className="hidden sm:inline">Back to Dashboard</span>
+                <span className="hidden sm:inline font-medium">Dashboard</span>
               </button>
-              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Product Management</h1>
+              <h1 className="text-xl font-bold text-gray-900">Product Management</h1>
             </div>
+            
             <button
               onClick={handleCreateProduct}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto justify-center"
+              className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-3 py-2 rounded-xl hover:shadow-lg transition-all"
             >
-              <Plus className="w-5 h-5" />
-              <span>Add Product</span>
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Product</span>
             </button>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Search */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm p-5 mb-6">
           <div className="relative">
-            <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+            <div className="absolute left-3 top-3 text-gray-400">
+              <Search className="w-5 h-5" />
+            </div>
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder="Search products by name, category, or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
             />
           </div>
         </div>
 
         {/* Products Grid */}
         {filteredProducts.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <p className="text-gray-600 text-lg">No products found</p>
+          <div className="bg-white rounded-2xl shadow-sm p-8 text-center border border-gray-200">
+            <div className="mx-auto h-16 w-16 rounded-full bg-indigo-100 flex items-center justify-center mb-4">
+              <Package className="h-8 w-8 text-indigo-600" />
+            </div>
+            <p className="text-gray-600 text-lg mb-4">No products found</p>
             <button
               onClick={handleCreateProduct}
-              className="mt-4 flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 mx-auto"
+              className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-5 py-2.5 rounded-xl hover:shadow-lg transition-all mx-auto"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4" />
               <span>Create your first product</span>
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredProducts.map((product) => (
-              <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col h-full">
-                <div className="aspect-video bg-gray-200">
+              <div 
+                key={product.id} 
+                className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col h-full border border-gray-200 hover:shadow-md transition-all duration-200 transform hover:-translate-y-1"
+              >
+                <div className="aspect-video bg-gradient-to-br from-gray-100 to-gray-200 relative">
                   {product.images.length > 0 ? (
                     <img
                       src={product.images[0]}
@@ -297,44 +389,53 @@ const AdminProducts: React.FC = () => {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      No Image
+                      <ImageIcon className="h-12 w-12" />
                     </div>
                   )}
+                  <div className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm px-2 py-1 rounded-lg text-xs font-medium">
+                    ID: {product.id.substring(0, 6)}...
+                  </div>
                 </div>
                 
                 <div className="p-4 flex flex-col flex-grow">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 truncate">{product.name}</h3>
-                  <p className="text-gray-600 text-sm mb-2">{product.category}</p>
-                  <div className="flex justify-between items-center mb-4 mt-auto">
-                    <span className="text-xl font-bold text-green-600">৳{product.price}</span>
-                    <span className={`text-sm px-2 py-1 rounded-full ${
+                  <div className="flex-grow">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1 truncate">{product.name}</h3>
+                    <p className="text-gray-600 text-sm mb-3">{product.category}</p>
+                  </div>
+                  
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-xl font-bold text-blue-600">৳{product.price}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
                       product.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                     }`}>
-                      {product.stock > 0 ? `In Stock (${product.stock})` : 'Out of Stock'}
+                      {product.stock > 0 ? `Stock: ${product.stock}` : 'Out of Stock'}
                     </span>
                   </div>
                   
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => handleViewProduct(product)}
-                      className="flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-1 bg-gray-100 text-gray-700 px-2 py-2 rounded hover:bg-gray-200 text-sm"
+                      className="flex flex-col items-center justify-center space-y-1 bg-gray-100 text-gray-700 p-2 rounded-lg hover:bg-gray-200 text-xs transition-colors"
+                      aria-label="View product"
                     >
                       <Eye className="w-4 h-4" />
-                      <span className="hidden sm:inline">View</span>
+                      <span>View</span>
                     </button>
                     <button
                       onClick={() => handleEditProduct(product)}
-                      className="flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-1 bg-blue-100 text-blue-700 px-2 py-2 rounded hover:bg-blue-200 text-sm"
+                      className="flex flex-col items-center justify-center space-y-1 bg-blue-100 text-blue-700 p-2 rounded-lg hover:bg-blue-200 text-xs transition-colors"
+                      aria-label="Edit product"
                     >
                       <Edit className="w-4 h-4" />
-                      <span className="hidden sm:inline">Edit</span>
+                      <span>Edit</span>
                     </button>
                     <button
                       onClick={() => handleDeleteProduct(product.id)}
-                      className="flex flex-col sm:flex-row items-center justify-center space-x-0 sm:space-x-1 bg-red-100 text-red-700 px-2 py-2 rounded hover:bg-red-200 text-sm"
+                      className="flex flex-col items-center justify-center space-y-1 bg-red-100 text-red-700 p-2 rounded-lg hover:bg-red-200 text-xs transition-colors"
+                      aria-label="Delete product"
                     >
                       <Trash2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">Delete</span>
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
@@ -345,64 +446,138 @@ const AdminProducts: React.FC = () => {
 
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg w-full max-w-2xl md:max-w-4xl max-h-[90vh] overflow-y-auto">
-              <div className="p-4 sm:p-6">
-                <div className="flex justify-between items-center mb-4 sm:mb-6">
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90dvh] overflow-y-auto shadow-2xl">
+              <div className="sticky top-0 bg-white z-10 border-b border-gray-200">
+                <div className="flex justify-between items-center p-4 sm:p-6">
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                     {modalMode === 'create' ? 'Add New Product' : 
                      modalMode === 'edit' ? 'Edit Product' : 'Product Details'}
                   </h2>
                   <button
                     onClick={() => setShowModal(false)}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label="Close modal"
                   >
                     <X className="w-6 h-6" />
                   </button>
                 </div>
+              </div>
 
+              <div className="p-4 sm:p-6">
                 {modalMode === 'view' && selectedProduct ? (
-                  <div className="space-y-4 sm:space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3">Product Information</h3>
-                        <div className="space-y-2">
-                          <p><strong>Name:</strong> {selectedProduct.name}</p>
-                          <p><strong>Price:</strong> ৳{selectedProduct.price}</p>
-                          <p><strong>Category:</strong> {selectedProduct.category}</p>
-                          <p><strong>Stock:</strong> {selectedProduct.stock}</p>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Product Info Card */}
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
+                        <h3 className="text-lg font-semibold mb-4 text-indigo-700 flex items-center">
+                          <Package className="w-5 h-5 text-indigo-600 mr-2" />
+                          Product Information
+                        </h3>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-sm text-gray-500">ID</p>
+                            <p className="font-medium">{selectedProduct.id}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Name</p>
+                            <p className="font-medium">{selectedProduct.name}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Price</p>
+                            <p className="font-medium text-blue-600">৳{selectedProduct.price}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Category</p>
+                            <p className="font-medium">{selectedProduct.category}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Stock</p>
+                            <p className={`font-medium ${
+                              selectedProduct.stock > 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {selectedProduct.stock}
+                            </p>
+                          </div>
                         </div>
                       </div>
                       
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3">Images</h3>
-                        <div className="grid grid-cols-2 gap-2">
+                      {/* Images Card */}
+                      <div className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-xl p-5 border border-emerald-100">
+                        <h3 className="text-lg font-semibold mb-4 text-emerald-700 flex items-center">
+                          <ImageIcon className="w-5 h-5 text-emerald-600 mr-2" />
+                          Images
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3">
                           {selectedProduct.images.map((image, index) => (
-                            <div key={index} className="relative aspect-square">
+                            <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
                               <img
                                 src={image}
                                 alt={`Product ${index + 1}`}
-                                className="w-full h-full object-cover rounded"
+                                className="w-full h-full object-cover"
                               />
+                              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                             </div>
                           ))}
                         </div>
                       </div>
                     </div>
                     
-                    <div>
-                      <h3 className="text-lg font-semibold mb-3">Description</h3>
+                    {/* Description Card */}
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-5 border border-amber-100">
+                      <h3 className="text-lg font-semibold mb-4 text-amber-700 flex items-center">
+                        <Edit className="w-5 h-5 text-amber-600 mr-2" />
+                        Description
+                      </h3>
                       <div 
-                        className="prose max-w-none"
+                        className="prose max-w-none bg-white p-4 rounded-lg border border-gray-200"
                         dangerouslySetInnerHTML={{ __html: selectedProduct.description }}
                       />
                     </div>
+
+                    {/* Addons Card */}
+                    {selectedProduct.addons && selectedProduct.addons.length > 0 && (
+                      <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-5 border border-purple-100">
+                        <h3 className="text-lg font-semibold mb-4 text-purple-700 flex items-center">
+                          <DollarSign className="w-5 h-5 text-purple-600 mr-2" />
+                          Add-ons
+                        </h3>
+                        <div className="space-y-3">
+                          {selectedProduct.addons.map((addon, index) => (
+                            <div key={index} className="flex justify-between items-center p-3 bg-white rounded-lg border border-purple-200">
+                              <span className="font-medium">{addon.name}</span>
+                              <span className="font-semibold text-blue-600">৳{addon.price}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                  <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {/* ID Field */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Product ID *
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.id}
+                          onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
+                          required
+                          disabled={modalMode === 'edit'}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:bg-gray-100 transition"
+                          placeholder="e.g., p1, jersey-001"
+                        />
+                        {modalMode === 'edit' && (
+                          <p className="text-xs text-gray-500 mt-1">Product ID cannot be changed</p>
+                        )}
+                      </div>
+
+                      {/* Name Field */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
                           Product Name *
                         </label>
                         <input
@@ -410,12 +585,13 @@ const AdminProducts: React.FC = () => {
                           value={formData.name}
                           onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {/* Price Field */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
                           Price (৳) *
                         </label>
                         <input
@@ -425,12 +601,13 @@ const AdminProducts: React.FC = () => {
                           value={formData.price}
                           onChange={(e) => setFormData(prev => ({ ...prev, price: Number(e.target.value) }))}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {/* Category Field */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
                           Category *
                         </label>
                         <input
@@ -438,12 +615,13 @@ const AdminProducts: React.FC = () => {
                           value={formData.category}
                           onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {/* Stock Field */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
                           Stock *
                         </label>
                         <input
@@ -452,41 +630,48 @@ const AdminProducts: React.FC = () => {
                           value={formData.stock}
                           onChange={(e) => setFormData(prev => ({ ...prev, stock: Number(e.target.value) }))}
                           required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                        />
+                      </div>
+
+                      {/* Video URL Field */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Video URL (Optional)
+                        </label>
+                        <input
+                          type="url"
+                          value={formData.video}
+                          onChange={(e) => setFormData(prev => ({ ...prev, video: e.target.value }))}
+                          className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                          placeholder="https://example.com/video.mp4"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Description (HTML) *
+                    {/* Description Field */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Description (Rich Text) *
                       </label>
-                      <textarea
-                        value={formData.description}
-                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                        rows={4}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
+                      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                        <ReactQuill
+                          theme="snow"
+                          value={formData.description}
+                          onChange={(value) => setFormData(prev => ({ ...prev, description: value }))}
+                          modules={modules}
+                          formats={formats}
+                          className="h-40 mb-12 rounded-b-xl"
+                        />
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Video URL (Optional)
+                    {/* Images Field */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Images * (Max 4)
                       </label>
-                      <input
-                        type="url"
-                        value={formData.video}
-                        onChange={(e) => setFormData(prev => ({ ...prev, video: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Images *
-                      </label>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                      <div className="border-2 border-dashed border-gray-300 rounded-xl p-5">
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -494,103 +679,144 @@ const AdminProducts: React.FC = () => {
                           onChange={handleImageUpload}
                           className="hidden"
                           id="image-upload"
+                          disabled={formData.images.length >= 4 || uploading}
                         />
                         <label
                           htmlFor="image-upload"
-                          className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2 cursor-pointer"
+                          className={`flex flex-col items-center justify-center space-y-2 text-center p-5 rounded-lg cursor-pointer transition-all ${
+                            formData.images.length >= 4 
+                              ? 'cursor-not-allowed bg-gray-100 text-gray-400' 
+                              : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                          } ${uploading ? 'opacity-70' : ''}`}
                         >
-                          <Upload className="w-5 h-5 text-gray-400" />
-                          <span className="text-gray-600 text-center">
-                            {uploading ? 'Uploading...' : 'Click to upload image (Max 4)'}
-                          </span>
+                          {uploading ? (
+                            <div className="flex flex-col items-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                              <span>Uploading...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8" />
+                              <span className="font-medium">
+                                {formData.images.length >= 4 
+                                  ? 'Maximum 4 images reached' 
+                                  : 'Click or drag to upload images'}
+                              </span>
+                              <p className="text-sm text-gray-500">
+                                Supported formats: JPG, PNG, WEBP. Max size: 2MB
+                              </p>
+                            </>
+                          )}
                         </label>
                         
                         {formData.images.length > 0 && (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-                            {formData.images.map((image, index) => (
-                              <div key={index} className="relative aspect-square">
-                                <img
-                                  src={image}
-                                  alt={`Product ${index + 1}`}
-                                  className="w-full h-full object-cover rounded"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => removeImage(index)}
-                                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ))}
+                          <div className="mt-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {formData.images.map((image, index) => (
+                                <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
+                                  <img
+                                    src={image}
+                                    alt={`Product ${index + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeImage(index)}
+                                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    aria-label="Remove image"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs p-1 text-center">
+                                    Image {index + 1}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
-                        <p className="text-xs text-gray-500 mt-2 text-center">
-                          Supported formats: JPG, PNG, WEBP. Max size: 2MB
-                        </p>
                       </div>
                     </div>
 
-                    <div>
-                      <div className="flex justify-between items-center mb-4">
+                    {/* Addons Field */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
                         <label className="block text-sm font-medium text-gray-700">
                           Add-ons (Optional)
                         </label>
                         <button
                           type="button"
                           onClick={addAddon}
-                          className="flex items-center space-x-1 bg-green-600 text-white px-3 py-1 rounded text-sm"
+                          className="flex items-center space-x-1 bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700 transition-colors"
                         >
                           <Plus className="w-4 h-4" />
                           <span>Add Addon</span>
                         </button>
                       </div>
                       
-                      {formData.addons.map((addon, index) => (
-                        <div key={index} className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-2">
-                          <input
-                            type="text"
-                            placeholder="Addon name"
-                            value={addon.name}
-                            onChange={(e) => updateAddon(index, 'name', e.target.value)}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
-                          />
-                          <div className="flex space-x-2">
-                            <input
-                              type="number"
-                              placeholder="Price"
-                              min="0"
-                              step="0.01"
-                              value={addon.price}
-                              onChange={(e) => updateAddon(index, 'price', Number(e.target.value))}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeAddon(index)}
-                              className="bg-red-600 text-white px-3 py-2 rounded-lg min-w-[40px]"
-                            >
-                              <X className="w-4 h-4 mx-auto" />
-                            </button>
-                          </div>
+                      {formData.addons.length > 0 && (
+                        <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                          {formData.addons.map((addon, index) => (
+                            <div key={index} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_40px] gap-2">
+                              <div>
+                                <label className="text-xs text-gray-500 mb-1">Addon name</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g., Name printing"
+                                  value={addon.name}
+                                  onChange={(e) => updateAddon(index, 'name', e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                />
+                              </div>
+                              
+                              <div>
+                                <label className="text-xs text-gray-500 mb-1">Price (৳)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0.00"
+                                  min="0"
+                                  step="0.01"
+                                  value={addon.price}
+                                  onChange={(e) => updateAddon(index, 'price', Number(e.target.value))}
+                                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                />
+                              </div>
+                              
+                              <div className="flex items-end">
+                                <button
+                                  type="button"
+                                  onClick={() => removeAddon(index)}
+                                  className="w-full h-[42px] bg-red-100 text-red-700 flex items-center justify-center rounded-lg hover:bg-red-200 transition"
+                                  aria-label="Remove addon"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-4">
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row justify-end space-y-3 sm:space-y-0 sm:space-x-4 pt-4 border-t border-gray-200">
                       <button
                         type="button"
                         onClick={() => setShowModal(false)}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                        className="px-5 py-2.5 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-                        disabled={uploading}
+                        className="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-5 py-2.5 rounded-xl hover:shadow-lg transition-all disabled:opacity-70"
+                        disabled={uploading || isSubmitting}
                       >
-                        <Save className="w-4 h-4" />
+                        {isSubmitting ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
                         <span>{modalMode === 'create' ? 'Create Product' : 'Update Product'}</span>
                       </button>
                     </div>

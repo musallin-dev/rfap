@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ShoppingCart, Play, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, Play, ChevronDown, ChevronUp, X, ZoomIn } from 'lucide-react';
 import { Product, getProduct } from '../services/firebaseService';
 import classNames from 'classnames';
 
@@ -22,6 +22,8 @@ const ProductDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const [fullscreenImageIndex, setFullscreenImageIndex] = useState(0);
   const [faqs, setFaqs] = useState<FAQ[]>([]);
 
   useEffect(() => {
@@ -66,6 +68,41 @@ const ProductDetail: React.FC = () => {
       );
     }
   };
+
+  const openFullscreen = (index: number) => {
+    setFullscreenImageIndex(index);
+    setShowFullscreen(true);
+  };
+
+  const nextFullscreenImage = () => {
+    if (product) {
+      setFullscreenImageIndex((prev) =>
+        prev === product.images.length - 1 ? 0 : prev + 1
+      );
+    }
+  };
+
+  const prevFullscreenImage = () => {
+    if (product) {
+      setFullscreenImageIndex((prev) =>
+        prev === 0 ? product.images.length - 1 : prev - 1
+      );
+    }
+  };
+
+  // Handle keyboard navigation in fullscreen
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (showFullscreen) {
+        if (e.key === 'ArrowLeft') prevFullscreenImage();
+        if (e.key === 'ArrowRight') nextFullscreenImage();
+        if (e.key === 'Escape') setShowFullscreen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [showFullscreen, product]);
 
   if (loading) {
     return (
@@ -117,12 +154,20 @@ const ProductDetail: React.FC = () => {
                 </video>
               </div>
             ) : (
-              <div className="aspect-video bg-gray-200 relative overflow-hidden">
+              <div className="aspect-video bg-gray-200 relative overflow-hidden group">
                 {/* Watermark Overlay */}
                 <span className="absolute inset-0 flex items-center justify-center text-6xl font-extrabold text-white opacity-30 pointer-events-none select-none" style={{ textShadow: '0 0 10px rgba(0,0,0,0.5)' }}>
                   RFaP
                 </span>
                 <img src={product.images[currentImageIndex]} alt={product.name} className="w-full h-full object-cover" />
+
+                {/* Fullscreen Button */}
+                <button
+                  onClick={() => openFullscreen(currentImageIndex)}
+                  className="absolute top-4 left-4 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 transition-opacity opacity-0 group-hover:opacity-100"
+                >
+                  <ZoomIn className="w-5 h-5" />
+                </button>
 
                 {/* Navigation Arrows */}
                 {product.images.length > 1 && (
@@ -142,7 +187,7 @@ const ProductDetail: React.FC = () => {
                   </>
                 )}
 
-                {/* Video Play Button */}
+                {/* Video Play Button - Only show when not showing video */}
                 {product.video && !showVideo && (
                   <button
                     onClick={() => setShowVideo(true)}
@@ -215,6 +260,72 @@ const ProductDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Image Modal */}
+      {showFullscreen && (
+        <div className="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50">
+          <div className="relative w-full h-full flex items-center justify-center">
+            {/* Close Button */}
+            <button
+              onClick={() => setShowFullscreen(false)}
+              className="absolute top-4 right-4 bg-white bg-opacity-20 text-white p-2 rounded-full hover:bg-opacity-30 transition-colors z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Image */}
+            <img
+              src={product.images[fullscreenImageIndex]}
+              alt={`${product.name} - Image ${fullscreenImageIndex + 1}`}
+              className="max-w-full max-h-full object-contain"
+            />
+
+            {/* Navigation Arrows */}
+            {product.images.length > 1 && (
+              <>
+                <button
+                  onClick={prevFullscreenImage}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-20 text-white p-3 rounded-full hover:bg-opacity-30 transition-colors"
+                >
+                  <ChevronLeft className="w-8 h-8" />
+                </button>
+                <button
+                  onClick={nextFullscreenImage}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-20 text-white p-3 rounded-full hover:bg-opacity-30 transition-colors"
+                >
+                  <ChevronRight className="w-8 h-8" />
+                </button>
+              </>
+            )}
+
+            {/* Image Counter */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 text-white px-4 py-2 rounded-full">
+              {fullscreenImageIndex + 1} / {product.images.length}
+            </div>
+
+            {/* Thumbnail Navigation */}
+            {product.images.length > 1 && (
+              <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 flex space-x-2 max-w-full overflow-x-auto px-4">
+                {product.images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setFullscreenImageIndex(index)}
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-colors ${
+                      index === fullscreenImageIndex ? 'border-white' : 'border-transparent opacity-60 hover:opacity-80'
+                    }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`Thumbnail ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -72,7 +72,7 @@ const Success: React.FC = () => {
     fetchOrderData();
   }, [orderId]);
 
- const downloadReceipt = async () => {
+  const downloadReceipt = async () => {
   const element = document.getElementById('receipt');
   if (!element) return;
 
@@ -83,7 +83,6 @@ const Success: React.FC = () => {
     
     // Set fixed dimensions for A4 (210mm x 297mm)
     clone.style.width = '210mm';
-    clone.style.minHeight = '297mm';
     clone.style.position = 'absolute';
     clone.style.left = '-9999px';
     clone.style.top = '0';
@@ -91,7 +90,7 @@ const Success: React.FC = () => {
     clone.style.backgroundColor = 'white';
     clone.style.boxSizing = 'border-box';
     clone.style.padding = '15mm';
-    clone.style.overflow = 'hidden';
+    clone.style.overflow = 'visible'; // Changed to visible
     
     // Remove decorative styles
     clone.style.boxShadow = 'none';
@@ -100,12 +99,17 @@ const Success: React.FC = () => {
     
     document.body.appendChild(clone);
 
+    // Optimized html2canvas settings
     const canvas = await html2canvas(clone, {
-      scale: 3, // Higher scale for better quality
+      scale: 1,
       useCORS: true,
-      allowTaint: true,
       backgroundColor: '#ffffff',
       logging: false,
+      ignoreElements: (element) => {
+        // Skip animating elements
+        return element.classList.contains('animate-ping') || 
+               element.classList.contains('animate-pulse');
+      }
     });
 
     // Remove clone after capture
@@ -113,45 +117,48 @@ const Success: React.FC = () => {
 
     const pdf = new jsPDF('p', 'mm', 'a4');
     const imgWidth = 210;
+    const pageHeight = 297;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
     let heightLeft = imgHeight;
     let position = 0;
+    let pageCount = 1;
 
     // Add first page
     pdf.addImage(
-      canvas.toDataURL('image/png'), 
-      'PNG', 
+      canvas.toDataURL('image/jpeg', 0.8),
+      'JPEG', 
       0, 
       position,
       imgWidth, 
       imgHeight
     );
-    heightLeft -= 297; // Subtract A4 height (297mm)
+    heightLeft -= pageHeight;
 
-    // Add remaining pages if content is taller than one page
-    while (heightLeft > 0) {
+    // Add extra pages if needed
+    while (heightLeft >= 0) {
       position = heightLeft - imgHeight;
       pdf.addPage();
+      pageCount++;
       pdf.addImage(
-        canvas.toDataURL('image/png'), 
-        'PNG', 
+        canvas.toDataURL('image/jpeg', 0.8),
+        'JPEG', 
         0, 
         position,
         imgWidth, 
         imgHeight
       );
-      heightLeft -= 297;
+      heightLeft -= pageHeight;
     }
 
     // Add page numbers
-    const pageCount = pdf.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       pdf.setPage(i);
       pdf.setFontSize(10);
       pdf.text(
         `Page ${i} of ${pageCount}`,
-        210 - 20,
-        297 - 10
+        imgWidth - 20,
+        pageHeight - 10
       );
     }
 
@@ -161,6 +168,7 @@ const Success: React.FC = () => {
     alert('রসিদ ডাউনলোড করতে সমস্যা হয়েছে');
   }
 };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -190,6 +198,9 @@ const Success: React.FC = () => {
 
   const deliveryCharge = 110; // Updated delivery charge
   const remainingAmount = order.totalPrice + deliveryCharge - order.securityCharge;
+
+  // Calculate product total safely
+  const productTotal = (product.price || 0) * order.quantity;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -306,37 +317,56 @@ const Success: React.FC = () => {
                 </div>
               </div>
 
-              {/* Extra Fields */}
-              {order.extraFields && (
+              {/* Jersey Details */}
+              {order.extraFields?.jerseyDetails && order.extraFields.jerseyDetails.length > 0 && (
                 <div className="mb-10">
                   <div className="border border-orange-200 bg-orange-50 rounded-xl p-6 relative">
                     <div className="absolute -top-3 left-4 bg-orange-600 text-white px-4 py-1 rounded-full text-sm font-medium">
-                      বিশেষ নির্দেশনা
+                      জার্সি বিবরণ
                     </div>
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {order.extraFields.jerseyName && (
-                        <InfoRow 
-                          label="জার্সি নাম" 
-                          value={order.extraFields.jerseyName} 
-                          highlight 
-                        />
-                      )}
-                      {order.extraFields.jerseyNumber && (
-                        <InfoRow 
-                          label="জার্সি নাম্বার" 
-                          value={order.extraFields.jerseyNumber} 
-                          highlight 
-                        />
-                      )}
-                      {order.extraFields.deliveryNote && (
-                        <div className="md:col-span-2">
-                          <InfoRow 
-                            label="ডেলিভারি নোট" 
-                            value={order.extraFields.deliveryNote} 
-                            highlight 
-                          />
-                        </div>
-                      )}
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-orange-800 mb-3">জার্সির জন্য প্রিন্টিং তথ্য:</h4>
+                      
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full border-collapse">
+                          <thead>
+                            <tr className="bg-orange-100">
+                              <th className="py-2 px-4 border border-orange-200 text-left text-orange-800">জার্সি #</th>
+                              <th className="py-2 px-4 border border-orange-200 text-left text-orange-800">নাম</th>
+                              <th className="py-2 px-4 border border-orange-200 text-left text-orange-800">নাম্বার</th>
+                              <th className="py-2 px-4 border border-orange-200 text-left text-orange-800">সাইজ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {order.extraFields.jerseyDetails.map((detail, index) => (
+                              <tr key={index} className="border-b border-orange-200 last:border-b-0">
+                                <td className="py-2 px-4 border border-orange-200">{index + 1}</td>
+                                <td className="py-2 px-4 border border-orange-200">{detail.name || '-'}</td>
+                                <td className="py-2 px-4 border border-orange-200">{detail.number || '-'}</td>
+                                <td className="py-2 px-4 border border-orange-200">{detail.size || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Delivery Note */}
+              {order.extraFields?.deliveryNote && (
+                <div className="mb-10">
+                  <div className="border border-blue-200 bg-blue-50 rounded-xl p-6 relative">
+                    <div className="absolute -top-3 left-4 bg-blue-600 text-white px-4 py-1 rounded-full text-sm font-medium">
+                      ডেলিভারি নির্দেশনা
+                    </div>
+                    <div className="mt-4">
+                      <InfoRow 
+                        label="বিশেষ নির্দেশনা" 
+                        value={order.extraFields.deliveryNote} 
+                        highlight 
+                      />
                     </div>
                   </div>
                 </div>
@@ -360,16 +390,21 @@ const Success: React.FC = () => {
                     <tbody>
                       <TableRow 
                         label={`পণ্যের মূল্য (${order.quantity} x ৳${product.price})`} 
-                        value={`৳${product.price * order.quantity}`}
+                        value={`৳${productTotal}`}
                       />
                       
-                      {order.addons && order.addons.map((addon, index) => (
-                        <TableRow 
-                          key={index}
-                          label={addon.name}
-                          value={`৳${addon.price * order.quantity}`}
-                        />
-                      ))}
+                      {order.addons?.map((addon, index) => {
+                        // Add null check for addon.price
+                        const price = addon.price || 0;
+                        const addonTotal = price * order.quantity;
+                        return (
+                          <TableRow 
+                            key={index}
+                            label={`${addon.name} (${order.quantity} x ৳${price})`}
+                            value={`৳${addonTotal}`}
+                          />
+                        );
+                      })}
                       
                       <TableRow 
                         label="ডেলিভারি চার্জ"
