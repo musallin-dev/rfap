@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { initializeDemoData } from './services/firebaseService';
 
 // Layout Components
@@ -36,36 +37,38 @@ function App() {
   }, []);
 
   return (
-    <Router>
-      <ScrollToTop />
-      <div className="flex flex-col min-h-screen">
-        <Routes>
-          {/* Admin Routes (without header/footer) */}
-          <Route path="/admin" element={<AdminLogin />} />
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/admin/orders" element={<AdminOrders />} />
-          <Route path="/admin/products" element={<AdminProducts />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          
-          {/* Public Routes (with header/footer) */}
-          <Route path="/*" element={
-            <>
-              <Header />
-              <main className="flex-grow">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/products/:id" element={<ProductDetail />} />
-                  <Route path="/order/:id" element={<OrderForm />} />
-                  <Route path="/payment/:id" element={<Payment />} />
-                  <Route path="/success/:orderId" element={<Success />} />
-                </Routes>
-              </main>
-              <Footer />
-            </>
-          } />
-        </Routes>
-      </div>
-    </Router>
+    <HelmetProvider>
+      <Router>
+        <ScrollToTop />
+        <div className="flex flex-col min-h-screen">
+          <Routes>
+            {/* Admin Routes (without header/footer) */}
+            <Route path="/admin" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/orders" element={<AdminOrders />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            
+            {/* Public Routes (with header/footer) */}
+            <Route path="/*" element={
+              <>
+                <Header />
+                <main className="flex-grow">
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/products/:id" element={<ProductDetail />} />
+                    <Route path="/order/:id" element={<OrderForm />} />
+                    <Route path="/payment/:id" element={<Payment />} />
+                    <Route path="/success/:orderId" element={<Success />} />
+                  </Routes>
+                </main>
+                <Footer />
+              </>
+            } />
+          </Routes>
+        </div>
+      </Router>
+    </HelmetProvider>
   );
 }
 

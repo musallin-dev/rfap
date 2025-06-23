@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://rfap.vercel.app/</loc>
+    <lastmod>2025-01-27</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://scontent.fcgp36-1.fna.fbcdn.net/v/t39.30808-6/480273333_1057746109701793_5791664260972046635_n.jpg?_nc_cat=109&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=IvFrvfNeCzQQ7kNvwEo4Ap6&_nc_oc=Adl46Xgt26ecXBh19Ulrgx5urH0PrGVQsSeFC0OFyf3wSukqeDyUBPvIRyg_3qmIP90&_nc_zt=23&_nc_ht=scontent.fcgp36-1.fna&_nc_gid=BjJsFJtlfZUuwoEUMVS_yA&oh=00_AfPIcn-Dx3QWIxlgQ6Elu-R6itTDujN_Ep6OPGUzQroy1Q&oe=685E0907</image:loc>
+      <image:title>রাহেলা ফ্যাশন এন্ড প্রিন্টিং হাউজ</image:title>
+      <image:caption>বাংলাদেশের সেরা কাস্টম পোশাক ও প্রিন্টিং সেবা</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- Product Pages -->
+  <url>
+    <loc>https://rfap.vercel.app/products/p1</loc>
+    <lastmod>2025-01-27</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Order Pages -->
+  <url>
+    <loc>https://rfap.vercel.app/order/p1</loc>
+    <lastmod>2025-01-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <!-- Payment Pages -->
+  <url>
+    <loc>https://rfap.vercel.app/payment/p1</loc>
+    <lastmod>2025-01-27</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+</urlset>
